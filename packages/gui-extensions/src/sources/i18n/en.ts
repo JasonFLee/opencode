@@ -1,3 +1,3 @@
 export default {
-  "tab.title": "Sources",
+  "tab.count": "Sources · {{count}}",
 }

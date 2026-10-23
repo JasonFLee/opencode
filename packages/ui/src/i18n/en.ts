@@ -297,6 +297,7 @@ const source = {
   "ui.sources.count.one": "{{count}} source",
   "ui.sources.count.other": "{{count}} sources",
   "ui.sources.none": "No sources",
+  "ui.sources.title": "Sources",
   "ui.sources.searched": "Searched web",
   "ui.sources.searchFailed": "Search failed",
   "ui.sources.noResults": "No results",

@@ -43,6 +43,7 @@
     "./sources": "./src/sources/sources.ts",
     "./sources/experiment": "./src/sources/experiment.ts",
     "./sources/panel": "./src/sources/sources-panel.tsx",
+    "./sources/title": "./src/sources/sources-title.tsx",
     "./styles": "./src/styles/index.css",
     "./storybook": "./src/storybook/index.ts",
     "./v2/*.css": "./src/v2/components/*.css",

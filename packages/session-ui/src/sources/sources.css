@@ -92,12 +92,13 @@
   transition: none;
 }
 
+/* The turn's footer, set off from the reply by the same gap as its changed-files footer (`session-turn-diffs`). */
 [data-component="text-part"] [data-slot="text-part-footer"] {
   display: flex;
   align-items: center;
   gap: 8px;
   min-height: 20px;
-  margin-top: 4px;
+  margin-top: 16px;
 
   > [data-slot="text-part-copy-wrapper"] {
     flex: 1;

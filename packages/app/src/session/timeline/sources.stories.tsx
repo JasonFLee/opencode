@@ -4,11 +4,16 @@ import type { SessionDocument } from "@opencode/session-ui/document"
 import { turnMessages, turnSources } from "@opencode/session-ui/sources"
 import type { SiteIconMode } from "@opencode/session-ui/sources/experiment"
 import { SourcesPanel } from "@opencode/session-ui/sources/panel"
+import { SourcesTitle } from "@opencode/session-ui/sources/title"
 import { CURRENT_SESSION_ID, STORY_MODEL, STORY_TIME } from "@opencode/session-ui/storybook"
 import { timelinePresets } from "@opencode/session-ui/timeline/detail"
+import { Icon } from "@opencode/ui/icon"
+import { IconButton } from "@opencode/ui/icon-button"
 import { ScrollView } from "@opencode/ui/scroll-view"
+import { Tabs } from "@opencode/ui/tabs"
 import { createEffect, createMemo, on, onMount, Show, type ParentProps } from "solid-js"
 import { createStore } from "solid-js/store"
+import { useLanguage } from "@/runtime/i18n/language"
 import { SessionPreview } from "@/session/story-model"
 
 const timelineDetail = timelinePresets[2].value
@@ -248,7 +253,7 @@ function Sources(props: SourcesArgs) {
         timelineDetail={timelineDetail}
         side={
           <Show when={state.panel}>
-            <Side expand={props.expand}>
+            <Side expand={props.expand} count={sources().sources.length} onClose={() => setState("panel", false)}>
               <SourcesPanel sources={sources()} icons={props.icons} onOpen={() => {}} />
             </Side>
           </Show>
@@ -258,8 +263,10 @@ function Sources(props: SourcesArgs) {
   )
 }
 
-// The side panel's frame around the real panel. `expand` opens the first search with results once it shows.
-function Side(props: ParentProps<{ expand: boolean }>) {
+// The side panel's frame around the real panel: the strip with the real tab title, as the side region draws it.
+// `expand` opens the first search with results once it shows.
+function Side(props: ParentProps<{ expand: boolean; count: number; onClose: () => void }>) {
+  const language = useLanguage()
   let el: HTMLDivElement | undefined
 
   onMount(() => {
@@ -270,9 +277,30 @@ function Side(props: ParentProps<{ expand: boolean }>) {
   })
 
   return (
-    <div ref={el} class="flex h-full min-h-0 flex-col bg-v2-background-bg-base">
-      <ScrollView class="min-h-0 flex-1">{props.children}</ScrollView>
-    </div>
+    <Tabs value="sources" class="flex h-full min-h-0 flex-col bg-v2-background-bg-base">
+      <div class="session-review-v2-tabs-bar sticky top-0 shrink-0 flex items-center">
+        <Tabs.List>
+          <Tabs.Trigger
+            value="sources"
+            closeButton={
+              <IconButton
+                size="small"
+                variant="ghost-muted"
+                icon={<Icon name="xmark-small" />}
+                aria-label={language.t("common.closeTab")}
+                onClick={() => props.onClose()}
+              />
+            }
+            hideCloseButton
+          >
+            <SourcesTitle count={props.count} />
+          </Tabs.Trigger>
+        </Tabs.List>
+      </div>
+      <div ref={el} class="flex min-h-0 flex-1 flex-col">
+        <ScrollView class="min-h-0 flex-1">{props.children}</ScrollView>
+      </div>
+    </Tabs>
   )
 }
 

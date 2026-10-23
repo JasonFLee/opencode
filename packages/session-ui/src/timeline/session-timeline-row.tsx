@@ -150,6 +150,7 @@ export function createSessionTimelineRowRenderer(input: {
   // A steer sent while the timeline is open grows in. Messages already there when a session loads, and rows the
   // virtualizer remounts, appear as they are.
   const seen = { sessionID: "", ids: new Set<string>() }
+
   const arrivals = createMemo(() => {
     const sessionID = input.sessionID()
     const loaded = seen.sessionID === sessionID && seen.ids.size > 0
@@ -1268,5 +1269,6 @@ function growIn(el: HTMLElement) {
       return false
     },
   )
+
   onCleanup(remove)
 }

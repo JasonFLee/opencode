@@ -1,11 +1,14 @@
-import { lazy, onCleanup, Suspense } from "solid-js"
-import { Icon } from "@opencode/ui/icon"
-import { createKeyed, LinkHandler, onIdle, Panel, type PanelTab, type Setup } from "../sdk"
+import { createMemo, lazy, onCleanup, Show, Suspense } from "solid-js"
+import { turnMessages, turnSources } from "@opencode/session-ui/sources"
+import { sourcesExperiment } from "@opencode/session-ui/sources/experiment"
+import { SourcesTitle } from "@opencode/session-ui/sources/title"
+import { createKeyed, LinkHandler, onIdle, Panel, type MountedSession, type PanelTab, type Setup } from "../sdk"
 import type Sources from "./index"
 
 /**
  * The Sources experiment's side panel: one transient tab per turn, keyed by the user message that opened it. The
  * timeline's sources chip opens it with a link whose origin is this extension and whose href is that message's ID.
+ * Turning the experiment off stops listing the tabs, which closes them.
  */
 const setup: Setup<typeof Sources> = (ctx) => {
   const SourcesTab = lazy(() => import("./panel"))
@@ -25,8 +28,11 @@ const setup: Setup<typeof Sources> = (ctx) => {
     },
   )
 
+  const count = (session: MountedSession, id: string) =>
+    turnSources(turnMessages(session.server.data.session.message.list(session.id), id)).sources.length
+
   ctx.add(LinkHandler, {
-    match: (link) => link.origin === ctx.id && !!link.session,
+    match: (link) => sourcesExperiment.enabled && link.origin === ctx.id && !!link.session,
     open(link) {
       if (link.session) ctx.layout.open(`${ctx.id}:${link.href}`, link.session, { tab: "select" })
     },
@@ -37,6 +43,12 @@ const setup: Setup<typeof Sources> = (ctx) => {
     region: "side",
     transient: true,
     list: (input) => {
+      if (!sourcesExperiment.enabled) {
+        tabs.delete(input.session.key)
+
+        return []
+      }
+
       const cache = tabs.get(input.session.key) ?? new Map<string, PanelTab>()
       tabs.set(input.session.key, cache)
 
@@ -47,13 +59,14 @@ const setup: Setup<typeof Sources> = (ctx) => {
 
         const tab: PanelTab = {
           id,
-          title: ctx.t("tab.title"),
-          label: () => (
-            <div class="flex min-w-0 items-center gap-1.5">
-              <Icon name="globe" class="shrink-0" />
-              <span class="truncate">{ctx.t("tab.title")}</span>
-            </div>
-          ),
+          get title() {
+            return ctx.t("tab.count", { count: count(input.session, id) })
+          },
+          label: (state) => {
+            const total = createMemo(() => count(state.session, id))
+
+            return <SourcesTitle count={total()} />
+          },
         }
 
         cache.set(id, tab)
@@ -62,9 +75,11 @@ const setup: Setup<typeof Sources> = (ctx) => {
       })
     },
     render: (props) => (
-      <Suspense>
-        <SourcesTab session={props.session} from={props.tab.id} />
-      </Suspense>
+      <Show when={sourcesExperiment.enabled}>
+        <Suspense>
+          <SourcesTab session={props.session} from={props.tab.id} />
+        </Suspense>
+      </Show>
     ),
     close: (input) => {
       tabs.get(input.session.key)?.delete(input.tab.id)
