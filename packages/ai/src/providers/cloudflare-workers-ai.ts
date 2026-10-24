@@ -1,6 +1,5 @@
 import type { ProviderPackage } from "../provider-package.js"
-import { CloudflareRunEvaluation } from "../experimental/cloudflare-run-evaluation.js"
-import { EvaluationRounding } from "../experimental/evaluation.js"
+import { CloudflareRunDecisions } from "../protocols/cloudflare-run-decisions.js"
 import { CloudflareWorkersAIImages } from "../protocols/cloudflare-workers-ai-images.js"
 import { OpenAIChat } from "../protocols/openai-chat.js"
 import { AuthOptions, type AtLeastOne, type ProviderAuthOption } from "../route/auth-options.js"
@@ -64,26 +63,23 @@ export const route = Route.make({
 
 export const routes = [route]
 
-const clefRounding = new EvaluationRounding({ probabilityDecimals: 4, scoreDecimals: 4 })
-
 export const configure = (input: LanguageModelOptions) => {
   const { accountId: _accountId, apiKey: _apiKey, auth: _auth, baseURL: _baseURL, ...defaults } = input
   const auth = AuthOptions.bearer(input, authEnvVars)
   const configured = route.with({ ...defaults, endpoint: { baseURL: baseURL(input) }, auth })
-  const evaluation = (modelID: string | ModelID) =>
-    CloudflareRunEvaluation.model({
+  const decision = (modelID: string | ModelID) =>
+    CloudflareRunDecisions.model({
       id: modelID,
       provider: id,
       auth,
       baseURL: runBaseURL(input),
       headers: input.headers,
       http: HttpOptions.make(input.http),
-      rounding: clefRounding,
     })
   return {
     id,
     model: (modelID: string | ModelID) => configured.model<OpenAIProviderOptionsInput>({ id: modelID }),
-    experimental: { evaluation },
+    decision,
     image: (modelID: string | ModelID) =>
       CloudflareWorkersAIImages.model({
         ...MediaRoute.deployment({ ...input, baseURL: runBaseURL(input) }, auth),

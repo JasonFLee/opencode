@@ -24,9 +24,17 @@ import {
 /** Array values become repeated parameters (`keyterm=a&keyterm=b`). */
 export type Query = Readonly<Record<string, string | ReadonlyArray<string>>>
 
-/** `query` is appended to the endpoint URL before the route and caller `http.query` overlays. */
+/**
+ * `query` is appended to the endpoint URL before the route and caller `http.query` overlays. JSON `headers` are for
+ * headers that depend on the body (an opt-in header for a feature the body uses); caller `http.headers` still win.
+ */
 export type Body =
-  | { readonly type: "json"; readonly value: Record<string, unknown>; readonly query?: Query }
+  | {
+      readonly type: "json"
+      readonly value: Record<string, unknown>
+      readonly query?: Query
+      readonly headers?: Readonly<Record<string, string>>
+    }
   | { readonly type: "multipart"; readonly value: FormData }
   | {
       readonly type: "binary"
@@ -35,10 +43,15 @@ export type Body =
       readonly query?: Query
     }
 
-export const json = (value: Record<string, unknown>, query?: Query): Body => ({
+export const json = (
+  value: Record<string, unknown>,
+  query?: Query,
+  headers?: Readonly<Record<string, string>>,
+): Body => ({
   type: "json",
   value,
   query,
+  headers,
 })
 export const multipart = (value: FormData): Body => ({ type: "multipart", value })
 export const binary = (value: Uint8Array, contentType: string, query?: Query): Body => ({

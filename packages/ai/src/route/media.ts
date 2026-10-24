@@ -374,7 +374,17 @@ const makeTransport = <Request extends MediaRequest>(
         ),
         http?.query,
       )
-      const sent = yield* send({ method: "POST", url, headers, request: resolved, body }, execute)
+      const bodyHeaders = body.type === "json" ? body.headers : undefined
+      const sent = yield* send(
+        {
+          method: "POST",
+          url,
+          headers: bodyHeaders === undefined ? headers : Headers.merge(Headers.fromInput(bodyHeaders), headers),
+          request: resolved,
+          body,
+        },
+        execute,
+      )
       return { response: sent.response, context: { request: resolved, body } }
     }),
     /** Bodiless follow-up call (status, result, cancel) with the same auth and headers as `submit`. */

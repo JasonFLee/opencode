@@ -1,10 +1,10 @@
 import type { ProviderPackage } from "../provider-package.js"
 import { OpenAIChat } from "../protocols/openai-chat.js"
+import { SystemOne } from "../protocols/system-one.js"
 import { AuthOptions, type ProviderAuthOption } from "../route/auth-options.js"
 import { Route, type RouteDefaultsInput } from "../route/client.js"
 import { Endpoint } from "../route/endpoint.js"
 import { HttpOptions, ProviderID, type ModelID } from "../schema/index.js"
-import { SystemOne } from "../experimental/system-one.js"
 import type { OpenAIProviderOptionsInput } from "./openai-options.js"
 
 export const id = ProviderID.make("baseten")
@@ -16,7 +16,7 @@ export type LanguageModelOptions = Omit<RouteDefaultsInput, "providerOptions"> &
     readonly providerOptions?: OpenAIProviderOptionsInput
   }
 
-export interface BasetenEvaluationOptions {
+export interface BasetenDecisionOptions {
   readonly [key: string]: unknown
   readonly max_len?: number
 }
@@ -46,11 +46,10 @@ export const configure = (input: LanguageModelOptions = {}) => {
     endpoint: { baseURL: endpoint ?? baseURL },
     auth,
   })
-  const evaluation = (modelID: string | ModelID) =>
-    SystemOne.model<BasetenEvaluationOptions>({
+  const decision = (modelID: string | ModelID) =>
+    SystemOne.model<BasetenDecisionOptions>({
       id: modelID,
       provider: id,
-      providerMetadataKey: "baseten",
       auth,
       baseURL: endpoint ?? baseURL,
       headers: input.headers,
@@ -59,13 +58,13 @@ export const configure = (input: LanguageModelOptions = {}) => {
   return {
     id,
     model: (modelID: string | ModelID) => configured.model<OpenAIProviderOptionsInput>({ id: modelID }),
-    experimental: { evaluation },
+    decision,
     configure,
   }
 }
 
 export const provider = configure()
-export const experimental = provider.experimental
+export const decision = provider.decision
 
 export const model: ProviderPackage.Definition<Settings, OpenAIProviderOptionsInput>["model"] = (
   modelID,

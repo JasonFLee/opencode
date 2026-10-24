@@ -5,7 +5,7 @@ import { Protocol } from "../route/protocol.js"
 import { AuthOptions, type ProviderAuthOption } from "../route/auth-options.js"
 import { HttpOptions, ProviderID, type ModelID, type OpenString } from "../schema/index.js"
 import type { ProviderPackage } from "../provider-package.js"
-import { SystemOne } from "../experimental/system-one.js"
+import { SystemOne } from "../protocols/system-one.js"
 import { OpenAIChat } from "../protocols/openai-chat.js"
 import { cacheControl } from "../protocols/utils/cache.js"
 import { isRecord, JsonObject, lenient, ProviderShared } from "../protocols/shared.js"
@@ -70,7 +70,7 @@ export interface OpenRouterOptions {
 
 export type OpenRouterProviderOptionsInput = OpenRouterOptions
 
-export interface OpenRouterEvaluationOptions {
+export interface OpenRouterDecisionOptions {
   readonly [key: string]: unknown
   readonly provider?: OpenRouterProviderRouting
   readonly session_id?: string
@@ -194,28 +194,27 @@ const configuredRoute = (input: LanguageModelOptions) => {
 
 export const configure = (input: LanguageModelOptions = {}) => {
   const route = configuredRoute(input)
-  const evaluation = (modelID: string | ModelID) =>
-    SystemOne.model<OpenRouterEvaluationOptions>({
+  const decision = (modelID: string | ModelID) =>
+    SystemOne.model<OpenRouterDecisionOptions>({
       id: modelID,
       provider: id,
-      providerMetadataKey: "openrouter",
+      imageInput: "state",
       auth: AuthOptions.bearer(input, "OPENROUTER_API_KEY"),
       baseURL: input.baseURL ?? baseURL,
       headers: input.headers,
       http: HttpOptions.make(input.http),
-      rounding: SystemOne.jevRounding,
     })
   return {
     id,
     model: (modelID: string | ModelID) =>
       route.model<OpenRouterProviderOptionsInput>({ id: modelID, compatibility: { supportsPromptCacheKey: true } }),
-    experimental: { evaluation },
+    decision,
     configure,
   }
 }
 
 export const provider = configure()
-export const experimental = provider.experimental
+export const decision = provider.decision
 export const model: ProviderPackage.Definition<Settings, OpenRouterProviderOptionsInput>["model"] = (
   modelID,
   { apiKey, baseURL, body, headers, ...providerOptions },

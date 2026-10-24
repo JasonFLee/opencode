@@ -1,7 +1,6 @@
 import type { Config, Redacted } from "effect"
 import type { ProviderPackage } from "../provider-package.js"
-import { CloudflareRunEvaluation } from "../experimental/cloudflare-run-evaluation.js"
-import { SystemOne } from "../experimental/system-one.js"
+import { CloudflareRunDecisions } from "../protocols/cloudflare-run-decisions.js"
 import { AnthropicMessages, OpenAIChat, OpenAIResponses } from "../protocols/index.js"
 import { Auth } from "../route/auth.js"
 import { Endpoint } from "../route/endpoint.js"
@@ -132,15 +131,14 @@ export const configure = (input: LanguageModelOptions) => {
   const responses = responsesRoute.with(passthrough("openai"))
   const messages = messagesRoute.with(passthrough("anthropic/v1"))
   const chat = route.with(rest)
-  const evaluation = (value: string | ModelID) =>
-    CloudflareRunEvaluation.model({
+  const decision = (value: string | ModelID) =>
+    CloudflareRunDecisions.model({
       id: value,
       provider: id,
       auth: rest.auth,
       baseURL: runBaseURL(input),
       headers: rest.headers,
       http: HttpOptions.make(input.http),
-      rounding: SystemOne.jevRounding,
     })
   return {
     id,
@@ -155,7 +153,7 @@ export const configure = (input: LanguageModelOptions) => {
         return chat.model<OpenAIProviderOptionsInput>({ id: value.slice("workers-ai/".length) })
       return chat.model<OpenAIProviderOptionsInput>({ id: value })
     },
-    experimental: { evaluation },
+    decision,
     configure,
   }
 }
