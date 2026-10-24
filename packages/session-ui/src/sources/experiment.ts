@@ -5,18 +5,17 @@ export type SiteIconMode = "letters" | "site"
 
 const enabled = motionTuning.toggle("sources.enabled", {
   label: "Enabled",
-  group: "Experiments",
-  card: "Sources",
-  order: 3,
+  group: "Composer",
+  subsection: "Sources",
+  experiment: true,
   value: false,
 })
 
 // A site's own icon is fetched from that site, which tells it the page was looked at; letters stay on this device.
 const icons = motionTuning.choice("sources.icons", {
   label: "Site icons",
-  group: "Experiments",
-  card: "Sources",
-  order: 3,
+  group: "Composer",
+  subsection: "Sources",
   when: enabled,
   value: "letters",
   labels: { letters: "Letters", site: "Site icon" },
@@ -25,9 +24,8 @@ const icons = motionTuning.choice("sources.icons", {
 /** The chip fading in as its turn finishes. */
 export const sourcesFade = motionTuning.spring("sources.fade", {
   label: "Fade in",
-  group: "Experiments",
-  card: "Sources",
-  order: 3,
+  group: "Composer",
+  subsection: "Sources",
   when: enabled,
   shipped: "smooth",
   presets: {
@@ -40,9 +38,8 @@ export const sourcesFade = motionTuning.spring("sources.fade", {
 /** A search opening to its results, and closing again. */
 export const sourcesExpand = motionTuning.spring("sources.expand", {
   label: "Expand",
-  group: "Experiments",
-  card: "Sources",
-  order: 3,
+  group: "Composer",
+  subsection: "Sources",
   when: enabled,
   shipped: "smooth",
   presets: {

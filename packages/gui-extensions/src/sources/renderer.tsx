@@ -12,7 +12,11 @@ import type Sources from "./index"
  */
 const setup: Setup<typeof Sources> = (ctx) => {
   const SourcesTab = lazy(() => import("./panel"))
-  onCleanup(onIdle(() => void SourcesTab.preload()))
+  onCleanup(
+    onIdle(() => {
+      if (sourcesExperiment.enabled) void SourcesTab.preload()
+    }),
+  )
 
   // Tab objects per session, reused so strip updates and session switches do not rebuild a trigger.
   const tabs = new Map<string, Map<string, PanelTab>>()
