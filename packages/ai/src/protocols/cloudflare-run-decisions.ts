@@ -38,7 +38,7 @@ export const model = (input: ModelInput) => {
       body: {
         from: (request) =>
           SystemOne.encodeBody(request, "images").pipe(
-            Effect.map((body) => MediaProtocol.json({ model: request.model.id, input: body.value })),
+            Effect.map((body) => MediaProtocol.json({ model: request.model.id, input: body })),
           ),
       },
       response: {

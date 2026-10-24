@@ -158,7 +158,7 @@ describe("Decision", () => {
         client((input) => {
           expect(input.request.url).toBe("https://opencode.test/v1/systemone")
           expect(input.request.headers.authorization).toBe("Bearer opencode-key")
-          expect(input.request.headers["typesafe-danger-zone-images"]).toBeUndefined()
+          expect(input.request.headers["typesafe-danger-zone-images"]).toBe("true")
           expect(JSON.parse(input.text)).toEqual({
             model: "jev-1.13",
             state: { ticket: "hello" },

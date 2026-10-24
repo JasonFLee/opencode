@@ -20,7 +20,8 @@ export const DEFAULT_PATH = "/systemone"
 
 /**
  * Where a host reads images, from models.dev `[api.systemone] compatibility.image_input`:
- * - `assets`: TypeSafe's `assets` map, referenced from the state, with its opt-in header;
+ * - `assets`: TypeSafe's `assets` map, referenced from the state, with its opt-in header (always sent: it changes
+ *   nothing for requests without images, checked live);
  * - `images`: top-level `images` (plus `audio` and `videos`) lists in input order;
  * - `state`: `image_url` (plus `input_audio` and `video_url`) items in place inside a `state` list.
  */
@@ -61,17 +62,14 @@ export type Response = Schema.Schema.Type<typeof Response>
 
 const route = MediaProtocol.identity({ id: "system-one", name: "System One", provider: "system-one" })
 
-/** The System One body without `model`, plus any header the body needs. */
+/** The System One body without `model`. */
 export const encodeBody = Effect.fn("SystemOne.encodeBody")(function* (
   request: DecisionRequestFor,
   imageInput: ImageInput,
 ) {
   const questions = yield* encodeQuestions(request.questions)
   const placed = yield* placeMedia(request.input, imageInput)
-  return {
-    value: { ...mergeJsonRecords(request.providerOptions, request.http?.body), ...placed.fields, questions },
-    headers: placed.headers,
-  }
+  return { ...mergeJsonRecords(request.providerOptions, request.http?.body), ...placed, questions }
 })
 
 const encodeQuestions = (questions: ReadonlyArray<DecisionQuestion>) =>
@@ -111,8 +109,8 @@ const encodeQuestions = (questions: ReadonlyArray<DecisionQuestion>) =>
 
 const placeMedia = Effect.fnUntraced(function* (parts: ReadonlyArray<DecisionPart>, imageInput: ImageInput) {
   const media = parts.flatMap((part) => (part.type === "media" ? [part.media] : []))
-  if (media.length === 0) return { fields: { state: state(parts.map(plain)) }, headers: undefined }
-  if (imageInput === "state") return { fields: { state: yield* Effect.forEach(parts, stateItem) }, headers: undefined }
+  if (media.length === 0) return { state: state(parts.map(plain)) }
+  if (imageInput === "state") return { state: yield* Effect.forEach(parts, stateItem) }
   if (imageInput === "images") {
     const lists = { image: "images", audio: "audio", video: "videos" } as const
     const unplaced = media.find((asset) => !Object.hasOwn(lists, asset.kind))
@@ -124,10 +122,7 @@ const placeMedia = Effect.fnUntraced(function* (parts: ReadonlyArray<DecisionPar
         return items.length === 0 ? [] : [[field, items]]
       }),
     )
-    return {
-      fields: { state: state(parts.filter((part) => part.type !== "media").map(plain)), ...fields },
-      headers: undefined,
-    }
+    return { state: state(parts.filter((part) => part.type !== "media").map(plain)), ...fields }
   }
   const unplaced = media.find((asset) => asset.kind !== "image")
   if (unplaced !== undefined) return yield* unsupported(unplaced, "images")
@@ -142,16 +137,13 @@ const placeMedia = Effect.fnUntraced(function* (parts: ReadonlyArray<DecisionPar
     { next: 0, values: [] },
   ).values
   return {
-    fields: {
-      state: items,
-      assets: Object.fromEntries(
-        inline.map((item, index) => [
-          reference(index),
-          { type: "image", format: item.mime.slice("image/".length), data_base64: item.base64 },
-        ]),
-      ),
-    },
-    headers: { "TypeSafe-Danger-Zone-Images": "true" },
+    state: items,
+    assets: Object.fromEntries(
+      inline.map((item, index) => [
+        reference(index),
+        { type: "image", format: item.mime.slice("image/".length), data_base64: item.base64 },
+      ]),
+    ),
   }
 })
 
@@ -256,16 +248,15 @@ export interface ModelInput extends MediaRoute.ModelInput {
 
 export const model = <Options extends DecisionOptions = DecisionOptions>(input: ModelInput) => {
   const provider = ProviderID.make(input.provider)
+  const imageInput = input.imageInput ?? "assets"
   const identity = MediaProtocol.identity({ id: route.id, name: route.name, provider })
   const decode = identity.decodeJson(Response)
   const composed = MediaRoute.inline({
     protocol: MediaProtocol.inline<DecisionRequestFor<Options>, DecisionResponse>(identity, {
       body: {
         from: (request) =>
-          encodeBody(request, input.imageInput ?? "assets").pipe(
-            Effect.map((body) =>
-              MediaProtocol.json({ ...body.value, model: request.model.id }, undefined, body.headers),
-            ),
+          encodeBody(request, imageInput).pipe(
+            Effect.map((body) => MediaProtocol.json({ ...body, model: request.model.id })),
           ),
       },
       response: {
@@ -279,7 +270,7 @@ export const model = <Options extends DecisionOptions = DecisionOptions>(input: 
       baseURL: input.baseURL,
     }),
     auth: input.auth,
-    headers: input.headers,
+    headers: imageInput === "assets" ? { "TypeSafe-Danger-Zone-Images": "true", ...input.headers } : input.headers,
   })
   return DecisionModel.make<Options>({
     id: input.id,
