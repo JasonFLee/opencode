@@ -1,5 +1,4 @@
 import { createMemo } from "solid-js"
-import { ScrollView } from "@opencode/ui/scroll-view"
 import { turnMessages, turnSources } from "@opencode/session-ui/sources"
 import { sourcesExperiment } from "@opencode/session-ui/sources/experiment"
 import { SourcesPanel } from "@opencode/session-ui/sources/panel"
@@ -22,9 +21,9 @@ export default function SourcesTab(props: { session: MountedSession; from: strin
 
   return (
     <div class="flex h-full min-h-0 flex-col bg-v2-background-bg-base" data-slot="session-sources-panel">
-      <ScrollView class="min-h-0 flex-1">
+      <div class="min-h-0 flex-1 overflow-y-auto" data-scrollable>
         <SourcesPanel sources={sources()} icons={sourcesExperiment.icons} onOpen={open} />
-      </ScrollView>
+      </div>
     </div>
   )
 }

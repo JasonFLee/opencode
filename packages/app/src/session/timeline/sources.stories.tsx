@@ -9,7 +9,6 @@ import { CURRENT_SESSION_ID, STORY_MODEL, STORY_TIME } from "@opencode/session-u
 import { timelinePresets } from "@opencode/session-ui/timeline/detail"
 import { Icon } from "@opencode/ui/icon"
 import { IconButton } from "@opencode/ui/icon-button"
-import { ScrollView } from "@opencode/ui/scroll-view"
 import { Tabs } from "@opencode/ui/tabs"
 import { createEffect, createMemo, on, onMount, Show, type ParentProps } from "solid-js"
 import { createStore } from "solid-js/store"
@@ -298,7 +297,9 @@ function Side(props: ParentProps<{ expand: boolean; count: number; onClose: () =
         </Tabs.List>
       </div>
       <div ref={el} class="flex min-h-0 flex-1 flex-col">
-        <ScrollView class="min-h-0 flex-1">{props.children}</ScrollView>
+        <div class="min-h-0 flex-1 overflow-y-auto" data-scrollable>
+          {props.children}
+        </div>
       </div>
     </Tabs>
   )
