@@ -244,6 +244,8 @@ export type McpResourceTemplate = {
   mimeType?: string
 }
 
+export type PtyTicketConnectToken = { ticket: string; expires_in: number }
+
 export type CredentialKey = { type: "key"; key: string; metadata?: { [x: string]: JsonValue } }
 
 export type ProjectVcs = string
@@ -284,8 +286,6 @@ export type SessionStatus =
       next: number
     }
   | { type: "busy" }
-
-export type PtyTicketConnectToken = { ticket: string; expires_in: number }
 
 export type PersistentPtyHandoff = { directory: string; instanceID: string; ticket: string; expiresAt: number }
 
@@ -664,14 +664,7 @@ export type ModelCost = {
   cache: { read: MoneyUSDPerMillionTokens; write: MoneyUSDPerMillionTokens }
 }
 
-export type VoiceModel = {
-  model: string
-  provider: string
-  transports: Array<VoiceTransportType>
-  available: boolean
-  integration?: string | undefined
-  workspace?: string | undefined
-}
+export type VoiceModel = { model: string; provider: string; transports: Array<VoiceTransportType>; available: boolean }
 
 export type VoiceTransport = VoiceWebRTCTransport | VoiceWebSocketTransport
 
@@ -1262,6 +1255,7 @@ export type SessionStepEnded = {
     rawFinish?: string
     native?: SessionMessageNative1
     cost: MoneyUSD
+    allowance?: MoneyUSD
     tokens: TokenUsageInfo
     snapshot?: SnapshotID
     files?: Array<RelativePath>
@@ -1283,6 +1277,7 @@ export type SessionStepFailed = {
     rawFinish?: string
     native?: SessionMessageNative1
     cost?: MoneyUSD
+    allowance?: MoneyUSD
     tokens?: TokenUsageInfo
     snapshot?: SnapshotID
     files?: Array<RelativePath>
@@ -1476,7 +1471,13 @@ export type SessionUsageRecorded = {
   type: "session.usage.recorded"
   durable: { aggregateID: string; seq: EventSeq; version: 1 }
   location?: LocationRef
-  data: { sessionID: SessionID; source: "title" | "compaction"; cost: MoneyUSD; tokens: TokenUsageInfo }
+  data: {
+    sessionID: SessionID
+    source: "title" | "compaction"
+    cost: MoneyUSD
+    allowance?: MoneyUSD
+    tokens: TokenUsageInfo
+  }
 }
 
 export type LocationShutdown = {
@@ -1557,7 +1558,7 @@ export type SessionUsageUpdated = {
   metadata?: { [x: string]: any }
   type: "session.usage.updated"
   location?: LocationRef
-  data: { sessionID: SessionID; cost: MoneyUSD; tokens: TokenUsageInfo }
+  data: { sessionID: SessionID; cost: MoneyUSD; allowance?: MoneyUSD; tokens: TokenUsageInfo }
 }
 
 export type SessionTextDelta = {
@@ -1998,7 +1999,7 @@ export type ProviderInfo = {
 
 export type VoiceModelsResponse = { data: { models: Array<VoiceModel>; default?: string | undefined } }
 
-export type VoiceSessionResponse = { data: { transport: VoiceTransport; session?: { id: string } | undefined } }
+export type VoiceSessionResponse = { data: { transport: VoiceTransport } }
 
 export type CredentialValue = CredentialOAuth | CredentialKey | CredentialExternal
 
@@ -2135,6 +2136,7 @@ export type SessionInfo = {
   agent?: AgentID
   model?: ModelRef
   cost: MoneyUSD
+  allowance?: MoneyUSD
   tokens: TokenUsageInfo
   outcome?: "succeeded" | "failed" | "interrupted"
   time: { created: number; updated: number; idle?: number; viewed?: number; archived?: number }
@@ -2349,6 +2351,7 @@ export type ConfigEntry =
         experimental?: {
           portable_shell_scanner?: boolean
           todo?: boolean
+          background_compaction?: boolean
           subagent_depth?: number
           location_idle_timeout?: string | false
           policies?: Array<{
@@ -2436,6 +2439,7 @@ export type SessionMessageAssistant = {
   rawFinish?: string
   native?: SessionMessageNative
   cost?: MoneyUSD
+  allowance?: MoneyUSD
   tokens?: TokenUsageInfo
   error?: SessionStructuredError
   retry?: SessionMessageAssistantRetry
@@ -2858,6 +2862,10 @@ export type McpServerNotFoundError = {
 export const isMcpServerNotFoundError = (value: unknown): value is McpServerNotFoundError =>
   typeof value === "object" && value !== null && "_tag" in value && value["_tag"] === "McpServerNotFoundError"
 
+export type ForbiddenError = { readonly _tag: "ForbiddenError"; readonly message: string }
+export const isForbiddenError = (value: unknown): value is ForbiddenError =>
+  typeof value === "object" && value !== null && "_tag" in value && value["_tag"] === "ForbiddenError"
+
 export type ProjectNotFoundError = {
   readonly _tag: "ProjectNotFoundError"
   readonly projectID: string
@@ -2907,10 +2915,6 @@ export const isRpcInternalError = (value: unknown): value is RpcInternalError =>
 export type PtyNotFoundError = { readonly _tag: "PtyNotFoundError"; readonly ptyID: string; readonly message: string }
 export const isPtyNotFoundError = (value: unknown): value is PtyNotFoundError =>
   typeof value === "object" && value !== null && "_tag" in value && value["_tag"] === "PtyNotFoundError"
-
-export type ForbiddenError = { readonly _tag: "ForbiddenError"; readonly message: string }
-export const isForbiddenError = (value: unknown): value is ForbiddenError =>
-  typeof value === "object" && value !== null && "_tag" in value && value["_tag"] === "ForbiddenError"
 
 export type ShellNotFoundError = { readonly _tag: "ShellNotFoundError"; readonly id: string; readonly message: string }
 export const isShellNotFoundError = (value: unknown): value is ShellNotFoundError =>
@@ -3257,6 +3261,7 @@ export type SessionImportInput = {
       readonly agent?: string
       readonly model?: { readonly id: string; readonly providerID: string; readonly variant?: string }
       readonly cost: number
+      readonly allowance?: number
       readonly tokens: {
         readonly input: number
         readonly output: number
@@ -3310,6 +3315,7 @@ export type SessionImportInput = {
       readonly agent?: string
       readonly model?: { readonly id: string; readonly providerID: string; readonly variant?: string }
       readonly cost: number
+      readonly allowance?: number
       readonly tokens: {
         readonly input: number
         readonly output: number
@@ -3363,6 +3369,7 @@ export type SessionImportInput = {
       readonly agent?: string
       readonly model?: { readonly id: string; readonly providerID: string; readonly variant?: string }
       readonly cost: number
+      readonly allowance?: number
       readonly tokens: {
         readonly input: number
         readonly output: number
@@ -5007,13 +5014,6 @@ export type VoiceSessionInput = {
 
 export type VoiceSessionOutput = VoiceSessionResponse["data"]
 
-export type VoiceInstructionsInput = {
-  readonly sessionID: { readonly sessionID: string }["sessionID"]
-  readonly instructions: { readonly instructions: string }["instructions"]
-}
-
-export type VoiceInstructionsOutput = void
-
 export type ProviderListInput = {
   readonly location?: { readonly location?: { readonly directory?: string | undefined } | undefined }["location"]
 }
@@ -5234,6 +5234,20 @@ export type McpResourceCatalogInput = {
 }
 
 export type McpResourceCatalogOutput = { location: LocationPublicRef; data: McpResourceCatalog }
+
+export type McpClientTokenInput = {
+  readonly location?: {
+    readonly location?: { readonly directory?: string | undefined } | undefined
+    readonly name: string
+  }["location"]
+  readonly name: {
+    readonly location?: { readonly directory?: string | undefined } | undefined
+    readonly name: string
+  }["name"]
+  readonly "x-opencode-ticket"?: { readonly "x-opencode-ticket"?: string | undefined }["x-opencode-ticket"]
+}
+
+export type McpClientTokenOutput = { location: LocationPublicRef; data: PtyTicketConnectToken }
 
 export type CredentialListOutput = { data: Array<CredentialEntry> }["data"]
 
@@ -6003,6 +6017,14 @@ export type VcsDiffInput = {
 }
 
 export type VcsDiffOutput = { location: LocationPublicRef; data: Array<FileDiffInfo> }
+
+export type DebugHeapDumpInput = { readonly directory?: { readonly directory?: string | undefined }["directory"] }
+
+export type DebugHeapDumpOutput = {
+  path: string
+  pid: number
+  memory: { rss: number; heapTotal: number; heapUsed: number; external: number; arrayBuffers: number }
+}
 
 export type DebugLocationListOutput = Array<LocationPublicRef>
 

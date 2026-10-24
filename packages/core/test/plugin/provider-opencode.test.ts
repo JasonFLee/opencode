@@ -28,7 +28,6 @@ import { OpenAIPlugin } from "@opencode/core/plugin/provider/openai"
 import { OpencodePlugin } from "@opencode/core/plugin/provider/opencode"
 import { Provider } from "@opencode/core/provider"
 import { Session } from "@opencode/core/session"
-import { Voice } from "@opencode/core/voice"
 import { WebSearch } from "@opencode/core/websearch"
 import { withEnv } from "../fixture/env"
 import { emptyMcp } from "../fixture/mcp"
@@ -2184,7 +2183,6 @@ describe("OpencodePlugin with a Console config", () => {
               policies: [{ action: "future.use", resource: "anything", effect: "deny" }, deny],
               shell: 123,
               future: { shape: 42 },
-              voice: { models: "gpt-live-1" },
             }),
         }),
       ),
@@ -2380,41 +2378,6 @@ describe("OpencodePlugin with a Console config", () => {
     ),
   )
 
-  it.effect("hosts the Console's voice offer beside its config document", () =>
-    Effect.acquireUseRelease(
-      Effect.sync(() =>
-        Bun.serve({
-          port: 0,
-          fetch: (request) =>
-            Response.json({
-              $schema,
-              providers: { remote: {} },
-              voice: { baseURL: `${new URL(request.url).origin}/v1`, models: ["gpt-live-1"], workspace: "Anomaly" },
-            }),
-        }),
-      ),
-      (server) =>
-        Effect.gen(function* () {
-          const credentials = yield* Credential.Service
-          const config = yield* Config.Service
-          const voice = yield* Voice.Service
-          yield* credentials.create({
-            integrationID: Integration.ID.make("opencode"),
-            value: Credential.Key.make({ type: "key", key: "secret", metadata: { server: server.url.origin } }),
-          })
-          yield* addPlugin().pipe(inProcess(server))
-
-          expect((yield* voice.models()).models.find((item) => item.model === "gpt-live-1")).toMatchObject({
-            integration: "opencode",
-            workspace: "Anomaly",
-          })
-          const info = required(yield* consoleDocument(config)).info
-          expect(Object.keys(Schema.encodeSync(Info)(info))).toEqual(["providers"])
-        }),
-      (server) => Effect.promise(() => server.stop(true)),
-    ),
-  )
-
   it.effect("replaces the Console config on an account switch and clears it on sign-out", () =>
     Effect.acquireUseRelease(
       Effect.sync(() =>
@@ -2480,150 +2443,6 @@ describe("OpencodePlugin with a Console config", () => {
       (server) => Effect.promise(() => server.stop(true)),
     ),
   )
-})
-
-describe("OpencodePlugin hosted voice", () => {
-  // A Console whose config offers hosted GPT-Live while `offered`, answering sessions with `reply`.
-  const voiceConsole = (reply: () => Response) =>
-    Effect.sync(() => {
-      const state = { offered: true }
-      const requests: { path: string; authorization: string | null; orgID: string | null; body: unknown }[] = []
-      const server = Bun.serve({
-        port: 0,
-        fetch: async (request) => {
-          const url = new URL(request.url)
-          if (url.pathname === "/api/v2/config")
-            return Response.json({
-              providers: {},
-              ...(state.offered
-                ? {
-                    voice: {
-                      baseURL: `${url.origin}/inference/openai/v1`,
-                      models: ["gpt-live-1"],
-                      workspace: "Anomaly",
-                    },
-                  }
-                : {}),
-            })
-          requests.push({
-            path: url.pathname,
-            authorization: request.headers.get("authorization"),
-            orgID: request.headers.get("x-org-id"),
-            body: await request.json(),
-          })
-          if (url.pathname.endsWith("/instructions")) return new Response(null, { status: 204 })
-          return reply()
-        },
-      })
-      return { server, state, requests }
-    })
-
-  const connect = (server: ReturnType<typeof Bun.serve>) =>
-    Effect.gen(function* () {
-      const credentials = yield* Credential.Service
-      yield* credentials.create({
-        integrationID: Integration.ID.make("opencode"),
-        value: Credential.OAuth.make({
-          type: "oauth",
-          methodID: Integration.MethodID.make("device"),
-          access: "secret",
-          refresh: "refresh",
-          expires: Date.now() + 600_000,
-          metadata: { server: server.url.origin, orgID: "org_test" },
-        }),
-      })
-      yield* addPlugin().pipe(inProcess(server))
-    })
-
-  const offer = {
-    model: "gpt-live-1",
-    session: { audio: { output: { voice: "marin" } } },
-    transport: { type: "webrtc", sdp: "v=0" },
-  } as const
-
-  it.effect("starts GPT-Live sessions on the Console with the connection's credential while it offers them", () =>
-    Effect.acquireUseRelease(
-      voiceConsole(() => Response.json({ session: { id: "sess_console" }, transport: { sdp: "answer:console" } })),
-      ({ server, state, requests }) =>
-        Effect.gen(function* () {
-          const voice = yield* Voice.Service
-          yield* connect(server)
-          const live = Effect.map(voice.models(), (list) => list.models.find((item) => item.model === "gpt-live-1"))
-
-          expect(yield* live).toMatchObject({ integration: "opencode", workspace: "Anomaly" })
-          expect(yield* voice.session(offer)).toEqual({
-            transport: { type: "webrtc", sdp: "answer:console" },
-            id: "sess_console",
-          })
-          yield* voice.instruct({ id: "sess_console", instructions: "The screen shows ses_1." })
-          expect(requests).toEqual([
-            {
-              path: "/inference/openai/v1/live/sessions",
-              authorization: "Bearer secret",
-              orgID: "org_test",
-              body: {
-                session: { audio: { output: { voice: "marin" } }, model: "gpt-live-1" },
-                transport: { type: "webrtc", sdp: "v=0" },
-              },
-            },
-            {
-              path: "/inference/openai/v1/live/sessions/sess_console/instructions",
-              authorization: "Bearer secret",
-              orgID: "org_test",
-              body: { instructions: "The screen shows ses_1." },
-            },
-          ])
-
-          state.offered = false
-          yield* TestClock.adjust("1 minute")
-          yield* drain
-          expect((yield* live)?.integration).not.toBe("opencode")
-        }),
-      ({ server }) => Effect.promise(() => server.stop(true)),
-    ),
-  )
-
-  for (const item of [
-    {
-      name: "a refusal's reason",
-      reply: () =>
-        Response.json(
-          { error: { type: "permission_error", message: "GPT-Live isn't enabled for this workspace" } },
-          { status: 403 },
-        ),
-      expected: {
-        _tag: "Voice.UnavailableError",
-        service: "opencode",
-        message: "GPT-Live isn't enabled for this workspace",
-      },
-    },
-    {
-      name: "an invalid session as the caller's",
-      reply: () =>
-        Response.json(
-          { error: { type: "invalid_request_error", message: "Stored GPT-Live sessions aren't available" } },
-          { status: 400 },
-        ),
-      expected: { _tag: "Voice.InvalidRequestError", message: "Stored GPT-Live sessions aren't available" },
-    },
-    {
-      name: "a rejected credential as a reconnect",
-      reply: () => Response.json({ error: { message: "Invalid credential" } }, { status: 401 }),
-      expected: { _tag: "Voice.UnavailableError", message: "Reconnect OpenCode Console to continue." },
-    },
-  ])
-    it.effect(`reports ${item.name}`, () =>
-      Effect.acquireUseRelease(
-        voiceConsole(item.reply),
-        ({ server }) =>
-          Effect.gen(function* () {
-            const voice = yield* Voice.Service
-            yield* connect(server)
-            expect(yield* voice.session(offer).pipe(Effect.flip)).toMatchObject(item.expected)
-          }),
-        ({ server }) => Effect.promise(() => server.stop(true)),
-      ),
-    )
 })
 
 for (const key of [undefined, "secret"]) {
